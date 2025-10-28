@@ -54,6 +54,7 @@ export interface ProgressInfo {
   currentStep: string; // Human-readable description
   substate: ProcessingSubstate;
   estimatedTimeRemaining?: number; // in seconds, optional
+  startTime?: number; // timestamp when video generation started
 }
 
 /**

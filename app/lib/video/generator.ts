@@ -9,6 +9,7 @@ import { ErrorCode } from "../../types";
 import { getAudioDuration, calculateImageDuration } from "../audio/duration";
 import { buildTransitionFilterComplex } from "../ffmpeg/transitions";
 import { initializeFFmpeg } from "../ffmpeg/init";
+import { PerformanceLogger } from "../utils/performance-logger";
 
 /**
  * Progress callback type
@@ -44,48 +45,73 @@ export async function generateVideo(options: VideoGenerationOptions): Promise<st
     onProgress,
   } = options;
 
+  // Initialize performance logger
+  const perfLogger = new PerformanceLogger("[VideoGen]");
+  perfLogger.start();
+  console.log("[VideoGen] ========== Video Generation Started ==========");
+
   try {
     // Step 1: Initialize FFMPEG
     onProgress?.(5, "Initializing video processor...");
+    perfLogger.startStep("Step 1/8: Initialize FFMPEG");
     const ffmpeg = await initializeFFmpeg();
+    perfLogger.stopStep("Step 1/8: Initialize FFMPEG");
 
     // Step 2: Load audio duration
     onProgress?.(10, "Analyzing audio...");
+    perfLogger.startStep("Step 2/8: Analyze Audio");
     const audioDuration = await getAudioDuration(primaryAudio);
     const imageDuration = calculateImageDuration(audioDuration, images.length);
+    perfLogger.stopStep("Step 2/8: Analyze Audio");
 
     // Step 3: Write files to FFMPEG virtual filesystem
     onProgress?.(15, "Loading files...");
+    perfLogger.startStep("Step 3/8: Write Files");
     await writeFilesToFFmpeg(ffmpeg, primaryAudio, backgroundMusic, images);
+    perfLogger.stopStep("Step 3/8: Write Files");
 
     // Step 4: Generate video from images
     onProgress?.(30, "Creating image slideshow...");
+    perfLogger.startStep("Step 4/8: Generate Image Video");
     await generateImageVideo(
       ffmpeg,
       images,
       imageDuration,
       transitionType,
       outputResolution,
-      audioDuration
+      audioDuration,
+      perfLogger
     );
+    perfLogger.stopStep("Step 4/8: Generate Image Video");
 
     // Step 5: Mix audio tracks
     onProgress?.(60, "Mixing audio...");
+    perfLogger.startStep("Step 5/8: Mix Audio");
     await mixAudioTracks(ffmpeg, primaryAudio, backgroundMusic, backgroundMusicVolume);
+    perfLogger.stopStep("Step 5/8: Mix Audio");
 
     // Step 6: Combine video and audio
     onProgress?.(80, "Finalizing video...");
+    perfLogger.startStep("Step 6/8: Combine Video/Audio");
     await combineVideoAndAudio(ffmpeg);
+    perfLogger.stopStep("Step 6/8: Combine Video/Audio");
 
     // Step 7: Read output file
     onProgress?.(95, "Preparing download...");
+    perfLogger.startStep("Step 7/8: Read Output");
     const data = await ffmpeg.readFile("output.mp4");
     const blob = new Blob([data as BlobPart], { type: "video/mp4" });
     const url = URL.createObjectURL(blob);
+    perfLogger.stopStep("Step 7/8: Read Output");
 
     // Step 8: Cleanup
     onProgress?.(100, "Complete!");
+    perfLogger.startStep("Step 8/8: Cleanup");
     await cleanupFFmpegFiles(ffmpeg);
+    perfLogger.stopStep("Step 8/8: Cleanup");
+
+    // Log total time
+    perfLogger.end();
 
     return url;
   } catch (error) {
@@ -132,13 +158,16 @@ async function generateImageVideo(
   imageDuration: number,
   transitionType: TransitionType,
   resolution: { width: number; height: number },
-  totalDuration: number
+  totalDuration: number,
+  perfLogger?: PerformanceLogger
 ): Promise<void> {
   const { width, height } = resolution;
 
   if (images.length === 1) {
     // Single image - no transitions needed
     const ext = images[0].name.split(".").pop() || "jpg";
+
+    perfLogger?.startSubStep("Step 4/8: Generate Image Video", "FFmpeg exec");
     await ffmpeg.exec([
       "-loop",
       "1",
@@ -152,6 +181,7 @@ async function generateImageVideo(
       "yuv420p",
       "video_only.mp4",
     ]);
+    perfLogger?.stopSubStep("Step 4/8: Generate Image Video", "FFmpeg exec");
   } else {
     // Multiple images with transitions
     const inputs: string[] = [];
@@ -160,12 +190,15 @@ async function generateImageVideo(
       inputs.push("-loop", "1", "-t", imageDuration.toString(), "-i", `image_${i}.${ext}`);
     }
 
+    perfLogger?.startSubStep("Step 4/8: Generate Image Video", "Build filter complex");
     const filterComplex = buildTransitionFilterComplex(
       images.length,
       imageDuration,
       transitionType
     );
+    perfLogger?.stopSubStep("Step 4/8: Generate Image Video", "Build filter complex");
 
+    perfLogger?.startSubStep("Step 4/8: Generate Image Video", "FFmpeg exec");
     await ffmpeg.exec([
       ...inputs,
       "-filter_complex",
@@ -178,6 +211,7 @@ async function generateImageVideo(
       totalDuration.toString(),
       "video_only.mp4",
     ]);
+    perfLogger?.stopSubStep("Step 4/8: Generate Image Video", "FFmpeg exec");
   }
 }
 

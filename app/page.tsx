@@ -58,6 +58,8 @@ export default function Home() {
       setProcessingState("processing");
       setError(null);
 
+      const startTime = Date.now();
+
       const videoUrl = await generateVideo({
         primaryAudio: files.primaryAudio,
         backgroundMusic: files.backgroundMusic,
@@ -70,6 +72,7 @@ export default function Home() {
             percentage,
             currentStep: step,
             substate: "rendering_video",
+            startTime,
           });
         },
       });

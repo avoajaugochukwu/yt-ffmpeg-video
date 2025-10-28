@@ -5,17 +5,42 @@
  * Displays real-time progress during video generation
  */
 
+import { useEffect, useState } from "react";
 import { useAppStore } from "../../store";
 import { cn } from "../../lib/utils/cn";
+import { formatDuration } from "../../lib/audio/duration";
 
 export function ProgressBar() {
   const processing = useAppStore((state) => state.processing);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
+  // Extract values before conditional return
+  const startTime = processing.progress?.startTime;
+  const percentage = processing.progress?.percentage ?? 0;
+  const currentStep = processing.progress?.currentStep ?? "";
+
+  // Update elapsed time every second
+  useEffect(() => {
+    if (!startTime) {
+      setElapsedSeconds(0);
+      return;
+    }
+
+    // Calculate initial elapsed time
+    setElapsedSeconds(Math.floor((Date.now() - startTime) / 1000));
+
+    // Update every second
+    const interval = setInterval(() => {
+      setElapsedSeconds(Math.floor((Date.now() - startTime) / 1000));
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [startTime]);
+
+  // Early return AFTER all hooks
   if (processing.state !== "processing" || !processing.progress) {
     return null;
   }
-
-  const { percentage, currentStep } = processing.progress;
 
   return (
     <div className="space-y-3 p-6 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
@@ -43,6 +68,15 @@ export function ProgressBar() {
           {currentStep}
         </p>
       </div>
+
+      {/* Elapsed time */}
+      {startTime && (
+        <div className="text-center">
+          <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
+            Elapsed: {formatDuration(elapsedSeconds)}
+          </p>
+        </div>
+      )}
 
       {/* Progress bar */}
       <div className="relative">
