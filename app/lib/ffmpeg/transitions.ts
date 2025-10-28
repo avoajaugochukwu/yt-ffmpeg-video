@@ -129,8 +129,9 @@ export function buildTransitionFilterComplex(
   for (let i = 0; i < imageCount - 1; i++) {
     const nextStream = i === imageCount - 2 ? "vout" : `vt${i}`;
     // The offset is when the transition should start relative to the first input stream
-    // It should start just before the next image appears (imageDuration - TRANSITION_DURATION)
-    const offset = imageDuration - TRANSITION_DURATION;
+    // For image i, it should start at: (i+1) * imageDuration - TRANSITION_DURATION
+    // This accounts for all previous images in the sequence
+    const offset = (i + 1) * imageDuration - TRANSITION_DURATION;
     const transitionFilter = getTransitionFilter(transitionType, TRANSITION_DURATION, offset);
     transitions.push(
       `[${currentStream}][v${i + 1}]${transitionFilter}[${nextStream}]`
