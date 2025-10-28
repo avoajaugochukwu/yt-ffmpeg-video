@@ -143,7 +143,7 @@ export interface TransitionConfig {
   name: TransitionType;
   displayName: string;
   description: string;
-  ffmpegFilter: (duration: number) => string;
+  ffmpegFilter: (duration: number, offset: number) => string;
 }
 
 /**
