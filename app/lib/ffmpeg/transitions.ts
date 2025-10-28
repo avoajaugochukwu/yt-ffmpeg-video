@@ -120,7 +120,7 @@ export function buildTransitionFilterComplex(
 
   // Scale all images to the same resolution
   for (let i = 0; i < imageCount; i++) {
-    transitions.push(`[${i}:v]scale=iw:ih,setpts=PTS-STARTPTS+${i * imageDuration}/TB[v${i}]`);
+    transitions.push(`[${i}:v]scale=iw:ih[v${i}]`);
   }
 
   // Create transitions between consecutive images
@@ -128,10 +128,9 @@ export function buildTransitionFilterComplex(
   let currentStream = "v0";
   for (let i = 0; i < imageCount - 1; i++) {
     const nextStream = i === imageCount - 2 ? "vout" : `vt${i}`;
-    // The offset is when the transition should start relative to the first input stream
-    // For image i, it should start at: (i+1) * imageDuration - TRANSITION_DURATION
-    // This accounts for all previous images in the sequence
-    const offset = (i + 1) * imageDuration - TRANSITION_DURATION;
+    // The offset accounts for cumulative overlap from previous transitions
+    // Each transition shortens the timeline by TRANSITION_DURATION
+    const offset = (i + 1) * (imageDuration - TRANSITION_DURATION);
     const transitionFilter = getTransitionFilter(transitionType, TRANSITION_DURATION, offset);
     transitions.push(
       `[${currentStream}][v${i + 1}]${transitionFilter}[${nextStream}]`
